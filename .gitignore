@@ -1,3 +1,6 @@
+# Exclude ArcGIS project
+ArcGIS/
+
 # History files
 .Rhistory
 .Rapp.history
