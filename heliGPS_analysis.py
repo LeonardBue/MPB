@@ -6,6 +6,7 @@ from locale import normalize
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+import georasters as gr
 import fiona
 import matplotlib.pyplot as plt
 
@@ -20,9 +21,10 @@ import matplotlib.pyplot as plt
 
 # geopandas included map, filtered to just this hemisphere
 GDB_FILENAME = './Data/MPB_AERIAL_SURVEY.gdb'
+SPECIES_FILENAME = './Data/Species_classification_2019/Species_classification_2019_Alberta.tif'
 CRS = 4269
 
-print(GDB_FILENAME)
+# %%
 
 # geopandas included map, filtered to just this hemisphere
 # world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
@@ -60,6 +62,11 @@ print(heliGPS.dmg_desc.value_counts(ascending=True))
 print(heliGPS.survyear.value_counts(ascending=True))
 print(heliGPS.att_stage.value_counts(ascending=True))
 print(heliGPS.zone.value_counts(ascending=True))
+print(heliGPS.loc[heliGPS['att_stage'] == 'Green'].survyear.value_counts(ascending=True))
+
+# %% Read tree species data
+species = gr.from_file(SPECIES_FILENAME)
+df_species = species.to_geopandas()
 
 # %% 
 # These data points do not have an attack stage (att_stage) assigned to them, thus they will be excluded from further anlysis.
