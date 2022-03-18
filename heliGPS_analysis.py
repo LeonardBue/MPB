@@ -99,21 +99,21 @@ heliGPS_poly.to_file(F_BUFFER)
 # Read tree species data
 species = []
 heliGPS_species_gdf = None
-for i in [1]:
+for i in [1, 2]:
     species = rxr.open_rasterio(F_SPECIES + str(i) + '.tif', masked=True).squeeze()
     species.rio.reproject(CRS)
 #     species = gr.from_file(F_SPECIES + str(i) + '.tif')
 
     # cleanup: set values of nan, to 0 corresponding to no trees
-    species_clean = species.where(species.isnull(), 0)
+    # species_clean = species.fillna(0)
     # ax = species.value.plot.hist(bins=max(species.value.unique()), figsize=(8,8))
     print(f'Loaded species data for AoI{i}')
 
     # extract pixel values for each polygon of the bufferes heli-GPS data
-    affine=species_clean.rio.transform()
+    affine=species.rio.transform()
 
     heliGPS_species = rs.zonal_stats(F_BUFFER,
-                                        species_clean.values, # gdf_species_no_zeros.values,
+                                        species.values, # gdf_species_no_zeros.values,
                                         nodata=0,
                                         # affine=rasterio.transform.from_origin(north, west, xsize, ysize),
                                         affine=affine,
@@ -135,6 +135,7 @@ else:
 
 heliGPS_species_gdf.head()
 
+print('Writing files.')
 # save file to GeoJSON and shapefile
 heliGPS_species_gdf.to_file(F_MPB_BUFFERED + '.shp')
 heliGPS_species_gdf.to_file(F_MPB_BUFFERED + '.shp')
@@ -142,13 +143,14 @@ heliGPS_species_gdf.to_file(F_MPB_BUFFERED + '.shp')
 # %%
 # visualize tree species data with heliGPS points and corresponding buffers
 
+
 fig, ax = plt.subplots(figsize=(10, 10))
 
-species_clean.plot(ax=ax)
+species.plot(ax=ax)
 heliGPS.plot(ax=ax, marker='o', markersize=2, color='red')
 heliGPS_poly.plot(ax=ax, color='red', alpha=0.5)
-ax.set_xlim([254000, 256000])
-ax.set_ylim([6.016e6, 6.018e6])
+# ax.set_xlim([254000, 256000])
+# ax.set_ylim([6.016e6, 6.018e6])
 # ax.set_axis_off()
 plt.show()
 
