@@ -22,7 +22,7 @@ F_AOI = './Data/Areas_of_Interest/Areas_of_Interest.shp'
 F_GRAVEL_ROADS = './Data/Road_Network/_gravelRoads.shp'
 F_PAVED_ROADS = './Data/Road_Network/_pavedRoads.shp'
 F_BUFFER = './Data/MPB_buffer/heliGPS_buffer.shp'
-F_MPB_BUFFERED = './Data/MPB_buffer/heliGPS_species_df'
+F_MPB_BUFFERED = './Data/MPB_buffer/heliGPS_species_gdf'
 
 CRS = 'EPSG:3400'
 
@@ -89,65 +89,66 @@ fig.suptitle('Spacial Distribution of Red and Green Attack Trees', fontsize=16)
 # %% 
 # Create buffer around heli-GPS points
 heliGPS_poly = heliGPS.copy()
-heliGPS_poly["geometry"] = heliGPS.geometry.buffer(, cap_style = 3)
+# resolution+1 corresponds to a square
+# https://shapely.readthedocs.io/en/latest/manual.html#object.buffer
+heliGPS_poly["geometry"] = heliGPS.geometry.buffer(60, resolution=1, cap_style = 3) 
 heliGPS_poly.head()
 heliGPS_poly.to_file(F_BUFFER)
 
 # %% 
 # Read tree species data
 species = []
-gdf_species = None
+heliGPS_species_gdf = None
 for i in [1]:
     species = rxr.open_rasterio(F_SPECIES + str(i) + '.tif', masked=True).squeeze()
     species.rio.reproject(CRS)
 #     species = gr.from_file(F_SPECIES + str(i) + '.tif')
-#     gdf = species.to_geopandas()
-#     if gdf_species is None:
-#         gdf_species = gdf
-#     else:
-#         gdf_species = pd.concat([gdf_species, gdf])
 
-# gdf_species.to_crs(CRS)
-# # cleanup: set values of 0, corresponding to no trees, to NAN
-# # gdf_species_no_zeros = gdf_species.where(gdf_species == 0, np.nan)
-# ax = gdf_species.value.plot.hist(bins=max(gdf_species.value.unique()), figsize=(8,8))
-print('finished loading species')
-# %% 
-# extract pixel values for each polygon of the bufferes heli-GPS data
-# bounds = gdf_species.total_bounds
-# north, west = bounds[0:2]
-# xsize = bounds[2] - bounds[0]
-# ysize = bounds[3] - bounds[1]
-# species = rxr.open_rasterio(F_SPECIES + str(i) + '.tif', masked=True).squeeze().rio.reproject(CRS)
-affine=species.rio.transform()
+    # cleanup: set values of nan, to 0 corresponding to no trees
+    species_clean = species.where(species.isnull(), 0)
+    # ax = species.value.plot.hist(bins=max(species.value.unique()), figsize=(8,8))
+    print(f'Loaded species data for AoI{i}')
 
-heliGPS_species = rs.zonal_stats(F_BUFFER,
-                                    species.values, # gdf_species_no_zeros.values,
-                                    nodata=0,
-                                    # affine=rasterio.transform.from_origin(north, west, xsize, ysize),
-                                    affine=affine,
-                                    geojson_out=True,
-                                    copy_properties=True,
-                                    stats=['count', 'min', 'mean', 'max', 'median', 'majority'])
-                                
-heliGPS_species_df = gpd.GeoDataFrame.from_features(heliGPS_species)
+    # extract pixel values for each polygon of the bufferes heli-GPS data
+    affine=species_clean.rio.transform()
 
-if heliGPS_species_df.crs is None:
-    heliGPS_species_df.set_crs(CRS)
+    heliGPS_species = rs.zonal_stats(F_BUFFER,
+                                        species_clean.values, # gdf_species_no_zeros.values,
+                                        nodata=0,
+                                        # affine=rasterio.transform.from_origin(north, west, xsize, ysize),
+                                        affine=affine,
+                                        geojson_out=True,
+                                        copy_properties=True,
+                                        stats=['count', 'min', 'mean', 'max', 'median', 'majority'])                               
+    
+    if heliGPS_species_gdf is None:
+        heliGPS_species_gdf = gpd.GeoDataFrame.from_features(heliGPS_species)
+    else:
+        heliGPS_species_gdf = pd.concat([heliGPS_species_gdf, gpd.GeoDataFrame.from_features(heliGPS_species)])
+    
+    print(f'Calculated correlated buffers and species data in AoI{i}') 
+        
+if heliGPS_species_gdf.crs is None:
+    heliGPS_species_gdf.set_crs(CRS, inplace=True) 
 else:
-    heliGPS_species_df.to_crs(CRS)
+    heliGPS_species_gdf.to_crs(CRS, inplace=True)
 
-heliGPS_species_df.head()
+heliGPS_species_gdf.head()
 
 # save file to GeoJSON and shapefile
-heliGPS_species_df.to_file(F_MPB_BUFFERED + '.shp')
-heliGPS_species_df.to_file(F_MPB_BUFFERED + '.shp')
+heliGPS_species_gdf.to_file(F_MPB_BUFFERED + '.shp')
+heliGPS_species_gdf.to_file(F_MPB_BUFFERED + '.shp')
 
 # %%
+# visualize tree species data with heliGPS points and corresponding buffers
+
 fig, ax = plt.subplots(figsize=(10, 10))
 
-species.plot(ax=ax)
+species_clean.plot(ax=ax)
 heliGPS.plot(ax=ax, marker='o', markersize=2, color='red')
+heliGPS_poly.plot(ax=ax, color='red', alpha=0.5)
+ax.set_xlim([254000, 256000])
+ax.set_ylim([6.016e6, 6.018e6])
 # ax.set_axis_off()
 plt.show()
 
