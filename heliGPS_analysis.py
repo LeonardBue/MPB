@@ -26,7 +26,7 @@ F_BUFFER = './Data/MPB_buffer/heliGPS_buffer.shp'
 F_MPB_BUFFERED = './Data/MPB_buffer/heliGPS_species_gdf'
 F_CMAP_SPECIES = './Data/Species_classification_2019/updated_species_list_alberta.csv'
 
-CRS = 'EPSG:3400'
+CRS = 'EPSG:4269'
 
 POINTBUFFER = 2
 
@@ -107,7 +107,7 @@ heliGPS_species_gdf = None
 
 for i in [1]:
     species = rxr.open_rasterio(F_SPECIES + str(i) + '.tif', masked=True).squeeze()
-    species.rio.reproject(CRS)
+    species = species.rio.reproject(CRS)
 #     species = gr.from_file(F_SPECIES + str(i) + '.tif')
 
     # cleanup: set values of nan, to 0 corresponding to no trees
@@ -182,7 +182,6 @@ for i in [1]:
 # %%
 # visualize tree species data with heliGPS points and corresponding buffers
 fig, ax = plt.subplots(figsize=(10, 10))
-
 species.plot(ax=ax, cmap = 'cividis')
 heliGPS.plot(ax=ax, marker='o', markersize=2, color='red')
 heliGPS_poly.plot(ax=ax, color='red', alpha=0.5)
