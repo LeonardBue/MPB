@@ -14,7 +14,7 @@ import rioxarray as rxr
 from rasterio.plot import show
 from osgeo import gdal
 from rasterstats import zonal_stats
-from shapely.geometry import box
+from shapely.geometry import box, Point
 
 
 F_GDB = './Data/MPB_AERIAL_SURVEY.gdb'
@@ -47,8 +47,13 @@ for l in heliGPS_last_3_years:
         heliGPS = pd.concat([heliGPS, survey])
         
 heliGPS = heliGPS.to_crs(CRS)
-heliGPS = heliGPS.reset_index()
+heliGPS = heliGPS.reset_index(drop=False)
 heliGPS # imported data should be of geometry type point. check with: heliGPS.geom_type.head()
+
+# These data points do not have an attack stage (att_stage) assigned to them, thus they will be excluded from further anlysis.
+heliGPS.loc[heliGPS['att_stage'] == ''].explore()
+heliGPS.drop(heliGPS[heliGPS.att_stage  == ''].index, inplace=True)
+# All remaining points are associated either to attack stage "Green" or "Red".
 
 # interactively visualize the data
 # heliGPS.explore()
@@ -65,12 +70,6 @@ print(heliGPS.zone.value_counts(ascending=True))
 print(heliGPS.loc[heliGPS['att_stage'] == 'Green'].survyear.value_counts(ascending=True))
 
 # %% 
-# These data points do not have an attack stage (att_stage) assigned to them, thus they will be excluded from further anlysis.
-heliGPS.loc[heliGPS['att_stage'] == ''].explore()
-heliGPS.drop(heliGPS[heliGPS.att_stage  == ''].index, inplace=True)
-# All remaining points are associated either to attack stage "Green" or "Red".
-
-
 # Visualize some statistics of the data
 
 # Distribution of affected trees, grouped by att_stage
@@ -83,9 +82,8 @@ for i, c in enumerate(['longitude', 'latitude']):
 fig.suptitle('Spacial Distribution of Red and Green Attack Trees', fontsize=16)
 
 
-
 # %%
-# load data and extract species of trees for points in area of interest
+# Extract species of trees for points in area of interest
 # add a column for the area of interest; defaults to 0 --> not in AoI
 heliGPS['AoI'] = np.zeros(max(heliGPS.count()), dtype=int)
 heliGPS['species'] = np.zeros(max(heliGPS.count()))
@@ -94,52 +92,40 @@ heliGPS['species'] = np.zeros(max(heliGPS.count()))
 for i in [1, 2, 3]:
     with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
         bounds = species.bounds # get bounding box raster
-        boundsGdf = gpd.GeoDataFrame({"id":1,"geometry":[box(*bounds)]}, crs=species.crs) # to GeoDataFrame
+        boundsGdf = gpd.GeoDataFrame({"geometry":[box(*bounds).buffer(-60)]}, crs=species.crs) # to GeoDataFrame
 
     points_within = heliGPS.to_crs(species.crs)
     points_within = heliGPS.overlay(boundsGdf, how='intersection') # Keep points within raster bounds -  https://geopandas.org/en/stable/docs/user_guide/set_operations.html
-    heliGPS.loc[points_within.index, 'AoI'] = i # set AoI identifier
+    points_within.set_index('index', inplace=True)
 
-    points_within = points_within.to_crs(CRS)
+    heliGPS.loc[points_within.index.astype('uint64'), 'AoI'] = i # set AoI identifier
+    # points_within = points_within.to_crs(CRS)
     points_within['geometry'] = points_within.geometry.buffer(distance=60, resolution=1, cap_style = 3) # Do some buffering
     zs_species = zonal_stats(points_within, F_SPECIES + str(i) + '.tif', categorical=True)
+        # https://pythonhosted.org/rasterstats/_modules/rasterstats/main.html#gen_zonal_stats
     # print(zs_species)
-    # add species to heli-GPS dataset
-    heliGPS.loc[points_within.index, 'species'] = zs_species # set AoI identifier
+    heliGPS.loc[points_within.index.astype('uint64'), 'species'] = zs_species # set AoI identifier
 
 # heliGPS.to_file(F_MPB_BUFFERED + '.geojson')
 # heliGPS.to_file(F_MPB_BUFFERED + '.shp')
-
-# # visualize tree species data with heliGPS points and corresponding buffers
-# for i in [1, 2, 3]:
-#     fig, ax = plt.subplots(figsize=(10, 10))
-#     with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
-#         species_data = species.read().reproject(species, CRS)
-#         rasterio.plot.show(species.read(), ax=ax, cmap = 'cividis')
-#         # heliGPS.plot(ax=ax, marker='o', markersize=2, color='red')
-#         # points_within.plot(ax=ax, color='red', alpha=0.5)
-#         # ax.set_xlim([254000, 256000])
-#         # ax.set_ylim([6.016e6, 6.018e6])
-#         # ax.set_axis_off()
-#         plt.show()
-
-
 # %%
-def test_reproject_epsg():
-    with rasterio.Env():
-        with rasterio.open('tests/data/RGB.byte.tif') as src:
-            source = src.read(1)
+# # visualize tree species data with heliGPS points and corresponding buffers
+for i in [1]:
+    fig, ax = plt.subplots(figsize=(10, 10))
+    
+    boundsGdf.plot(ax=ax, alpha=0)
+    # with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
+    #     # rasterio.plot.show(species.read(1), ax=ax, cmap = 'cividis')
+    #     ax.imshow(species.read(1), cmap = 'cividis', interpolation ='nearest', extent=ax.get_window_extent)
+    
+    # heliGPS.plot(ax=ax, marker='o', markersize=2, color='red')
+    points_within.plot(ax=ax, color='red', alpha=0.5)
+    ax.set_xlim([438141-1000, 438141+1000])
+    ax.set_ylim([5814418-1000, 5814418+1000])
+    # ax.set_axis_off()
+    # plt.show()
 
-        dst_crs = {'init': 'EPSG:3857'}
-        out = np.empty(src.shape, dtype=np.uint8)
-        rasterio.warp.reproject(
-            source,
-            out,
-            src_transform=src.transform,
-            src_crs=src.crs,
-            dst_transform=DST_TRANSFORM,
-            dst_crs=dst_crs,
-            resampling=Resampling.nearest)
+
 
 # %%
 def pixel_from_coords(gdal_data, data_array, pos):
@@ -174,4 +160,8 @@ def retrieve_pixel_value(pos, gdal_data):
     return data_array[pixel_coord[0]][pixel_coord[1]]
 
 
+# %%
+# create pandas df just with species for selected points
+df_species= pd.DataFrame(heliGPS[heliGPS['AoI']==1]['species'].to_list())
+df_species['sum'] = df_species.sum(axis=1)
 # %%
