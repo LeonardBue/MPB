@@ -101,67 +101,46 @@ for i in [1, 2, 3]:
     heliGPS.loc[points_within.index.astype('uint64'), 'AoI'] = i # set AoI identifier
     # points_within = points_within.to_crs(CRS)
     points_within['geometry'] = points_within.geometry.buffer(distance=60, resolution=1, cap_style = 3) # Do some buffering
-    zs_species = zonal_stats(points_within, F_SPECIES + str(i) + '.tif', categorical=True)
+    zs_species = zonal_stats(points_within, F_SPECIES + str(i) + '.tif', categorical=True, all_touched=True)
         # https://pythonhosted.org/rasterstats/_modules/rasterstats/main.html#gen_zonal_stats
     # print(zs_species)
     heliGPS.loc[points_within.index.astype('uint64'), 'species'] = zs_species # set AoI identifier
+    points_within.to_file(F_MPB_BUFFERED + str(i) + '.shp')
 
-# heliGPS.to_file(F_MPB_BUFFERED + '.geojson')
-# heliGPS.to_file(F_MPB_BUFFERED + '.shp')
+heliGPS.to_file(F_MPB_BUFFERED + '.shp')
 # %%
 # # visualize tree species data with heliGPS points and corresponding buffers
-for i in [1]:
+for i in [3]:
     fig, ax = plt.subplots(figsize=(10, 10))
-    
+    species_array = rxr.open_rasterio(F_SPECIES + str(i) + '.tif')
+    species_array = species_array.rio.reproject(CRS)
+    species_array.plot(cmap = 'cividis')
+    boundsGdf.to_crs(CRS)
     boundsGdf.plot(ax=ax, alpha=0)
     # with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
     #     # rasterio.plot.show(species.read(1), ax=ax, cmap = 'cividis')
     #     ax.imshow(species.read(1), cmap = 'cividis', interpolation ='nearest', extent=ax.get_window_extent)
     
     # heliGPS.plot(ax=ax, marker='o', markersize=2, color='red')
+    points_within.to_crs(CRS)
     points_within.plot(ax=ax, color='red', alpha=0.5)
-    ax.set_xlim([438141-1000, 438141+1000])
-    ax.set_ylim([5814418-1000, 5814418+1000])
+    ax.set_xlim([438141-500, 438141+500])
+    ax.set_ylim([5814418-500, 5814418+500])
     # ax.set_axis_off()
     # plt.show()
 
 
 
-# %%
-def pixel_from_coords(gdal_data, data_array, pos):
-    """
-    maps coordinates from georeferenced space to pixel column row values
-    GDALDataset.GetGeoTransform() returns affine transformation. more information is available here:
-    https://gdal.org/tutorials/geotransforms_tut.html
-    GT(0) x-coordinate of the upper-left corner of the upper-left pixel.
-    GT(1) w-e pixel resolution / pixel width.
-    GT(2) row rotation (typically zero).
-    GT(3) y-coordinate of the upper-left corner of the upper-left pixel.
-    GT(4) column rotation (typically zero).
-    GT(5) n-s pixel resolution / pixel height (negative value for a north-up image).
-    """
-
-    gt = gdal_data.GetGeoTransform()
-    col = int((pos[0] - gt[0]) / gt[1])
-    row = int((pos[1] - gt[4]) / -gt[5])
-    data_array
-    return col, row, data_array[row][col]
-
-def retrieve_pixel_value(pos, gdal_data):
-    """Return floating-point value that corresponds to given point."""
-    x, y = pos[0], pos[1]
-    forward_transform = affine.Affine.from_gdal(*gdal_data.GetGeoTransform())
-    reverse_transform = ~forward_transform
-    col, row = reverse_transform * (x, y)
-    col, row = int(col + 0.5), int(row + 0.5)
-    pixel_coord = col, row
-
-    data_array = np.array(gdal_data.GetRasterBand(1).ReadAsArray())
-    return data_array[pixel_coord[0]][pixel_coord[1]]
 
 
 # %%
 # create pandas df just with species for selected points
-df_species= pd.DataFrame(heliGPS[heliGPS['AoI']==1]['species'].to_list())
-df_species['sum'] = df_species.sum(axis=1)
+df_species= pd.DataFrame(heliGPS[heliGPS['AoI']!=0]['species'].to_list())
+# df_species['sum'] = df_species.sum(axis=1)
+df_species.describe()
 # %%
+# visualize species data for sampled points
+fig, ax = plt.subplots(1,3, figsize=(10,10))
+for i in range(3):
+    df_species = pd.DataFrame(heliGPS[heliGPS['AoI']==i+1]['species'].to_list())
+    ax[i].bar(df_species.columns, df_species.count()/sum(df_species.count()))
