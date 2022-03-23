@@ -29,6 +29,20 @@ most of the trees that have been detected as red-attack in 2011 and
 before, now have fallen to the ground ([Schoennagel et al.,
 2012](#ref-schoennagelEffectsMountainPine2012)).
 
+Three broad areas of interest have been selected based on availability
+of observed MPB attack in the years 2011, 2019, 2020, and 2021, while
+also having a dense network of paved roads and gravel roads. As already
+shown by various authors before, lodgepole pine (Pinus contorta) is the
+most commonly attacked by MPB, thus, areas where chosen, where lodgepole
+pine is one of the most dominant species. This information was based on
+a visual analysis of raser data containing the most dominant species in
+30 m by 30 m grid cells. ![Frequency of tree species within the
+surrounding area of each MPB survey point for the years 2011, 2019,
+2020, and 2021](%22graphics/freq_species_11_19_20_21.png%22) ![Frequency
+how often each tree species was the most dominant within one cell for
+each area of interest and
+cumulative.](%22graphics/freq_species_19_20_21_cum.png%22)
+
 Information on accessibility is based on the road network available
 through the government of Alberta ([Government of Alberta,
 2021a](#ref-GravelRoad2021), [2021b](#ref-PavedRoad2021)), since all

@@ -15,6 +15,7 @@ from rasterio.plot import show
 from osgeo import gdal
 from rasterstats import zonal_stats
 from shapely.geometry import box, Point
+from sympy import rotations
 
 
 F_GDB = './Data/MPB_AERIAL_SURVEY.gdb'
@@ -36,10 +37,11 @@ POINTBUFFER = 2
 layers = fiona.listlayers(F_GDB)
 heliGPS_layers = sorted([lyr for lyr in layers if lyr.endswith('x')])
 polygons = sorted([lyr for lyr in layers if lyr.endswith('p')])
-heliGPS_last_3_years = heliGPS_layers[-3:]
+relevant_years = [19] #, 19, 20, 21]
+relevant_layers = [lyr for lyr in heliGPS_layers if any([str(yr) in lyr for yr in relevant_years])]
 
 heliGPS = None
-for l in heliGPS_last_3_years:
+for l in relevant_layers:
     if heliGPS is None:
         heliGPS = gpd.read_file(F_GDB, layer=l)
     else:
@@ -88,6 +90,11 @@ fig.suptitle('Spacial Distribution of Red and Green Attack Trees', fontsize=16)
 heliGPS['AoI'] = np.zeros(max(heliGPS.count()), dtype=int)
 heliGPS['species'] = np.zeros(max(heliGPS.count()))
 
+# read tree species names
+df_names = pd.read_csv(F_CMAP_SPECIES)
+cmap_species = dict(zip(df_names['Value Code'], df_names['NFI Code']))
+cmap_species[0] = 'NO TREE'
+
 # iterate through AoI number
 for i in [1, 2, 3]:
     with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
@@ -101,7 +108,8 @@ for i in [1, 2, 3]:
     heliGPS.loc[points_within.index.astype('uint64'), 'AoI'] = i # set AoI identifier
     # points_within = points_within.to_crs(CRS)
     points_within['geometry'] = points_within.geometry.buffer(distance=60, resolution=1, cap_style = 3) # Do some buffering
-    zs_species = zonal_stats(points_within, F_SPECIES + str(i) + '.tif', categorical=True, all_touched=True)
+    zs_species = zonal_stats(points_within, F_SPECIES + str(i) + '.tif', categorical=True, 
+                                all_touched=True, category_map = cmap_species)
         # https://pythonhosted.org/rasterstats/_modules/rasterstats/main.html#gen_zonal_stats
     # print(zs_species)
     heliGPS.loc[points_within.index.astype('uint64'), 'species'] = zs_species # set AoI identifier
@@ -110,37 +118,59 @@ for i in [1, 2, 3]:
 heliGPS.to_file(F_MPB_BUFFERED + '.shp')
 # %%
 # # visualize tree species data with heliGPS points and corresponding buffers
-for i in [3]:
+for i in [1, 2, 3]:
     fig, ax = plt.subplots(figsize=(10, 10))
     species_array = rxr.open_rasterio(F_SPECIES + str(i) + '.tif')
-    species_array = species_array.rio.reproject(CRS)
+    species_array = species_array.rio.reproject('EPSG:3400')
     species_array.plot(cmap = 'cividis')
-    boundsGdf.to_crs(CRS)
-    boundsGdf.plot(ax=ax, alpha=0)
+    # boundsGdf.to_crs('EPSG:4269')
+    # boundsGdf.plot(ax=ax, alpha=0)
     # with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
     #     # rasterio.plot.show(species.read(1), ax=ax, cmap = 'cividis')
     #     ax.imshow(species.read(1), cmap = 'cividis', interpolation ='nearest', extent=ax.get_window_extent)
     
     # heliGPS.plot(ax=ax, marker='o', markersize=2, color='red')
-    points_within.to_crs(CRS)
+    points_within.to_crs('EPSG:3400')
     points_within.plot(ax=ax, color='red', alpha=0.5)
-    ax.set_xlim([438141-500, 438141+500])
-    ax.set_ylim([5814418-500, 5814418+500])
+    # ax.set_xlim([438141-500, 438141+500])
+    # ax.set_ylim([5814418-500, 5814418+500])
     # ax.set_axis_off()
     # plt.show()
-
-
-
 
 
 # %%
 # create pandas df just with species for selected points
 df_species= pd.DataFrame(heliGPS[heliGPS['AoI']!=0]['species'].to_list())
+df_species = df_species.reindex(sorted(df_species.columns), axis=1)
 # df_species['sum'] = df_species.sum(axis=1)
 df_species.describe()
+
+
 # %%
 # visualize species data for sampled points
-fig, ax = plt.subplots(1,3, figsize=(10,10))
+df_names = pd.read_csv(F_CMAP_SPECIES)
+cmap_labels = dict(zip(df_names['NFI Code'], df_names['Common Species Name']))
+labels = ['No Trees']
+for l in df_species.columns.to_list():
+    if l != 'NO TREE':
+        labels.append(cmap_labels[l])
+
+fig, ax = plt.subplots(1,4, figsize=(16,10), sharey=True)
+cum_tree_species = []
 for i in range(3):
     df_species = pd.DataFrame(heliGPS[heliGPS['AoI']==i+1]['species'].to_list())
-    ax[i].bar(df_species.columns, df_species.count()/sum(df_species.count()))
+    cum_tree_species.append( df_species.count().to_list())
+    ax[i].bar(df_species.columns, df_species.count())#/sum(df_species.count()))
+    
+cum_tree_species = np.sum(cum_tree_species, axis=0)
+ax[-1].bar(df_species.columns, cum_tree_species)
+for ax in ax.flat:
+    ax.set_xticklabels(labels, rotation='vertical')
+    ax.set_ylabel('Number of Pixels for most dominant tree species')
+    ax.label_outer()
+    ax.grid(axis='y')
+fig.suptitle('Most Dominant Tree Species in areas of interest')
+
+#TODO titles, and add second line relative to beetle infestation, separate for cumulative
+#TODO repeat for 2011, check if issues for earlier years
+# %%
