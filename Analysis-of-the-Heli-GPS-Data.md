@@ -36,12 +36,24 @@ shown by various authors before, lodgepole pine (Pinus contorta) is the
 most commonly attacked by MPB, thus, areas where chosen, where lodgepole
 pine is one of the most dominant species. This information was based on
 a visual analysis of raser data containing the most dominant species in
-30 m by 30 m grid cells. ![Frequency of tree species within the
-surrounding area of each MPB survey point for the years 2011, 2019,
-2020, and 2021](%22graphics/freq_species_11_19_20_21.png%22) ![Frequency
-how often each tree species was the most dominant within one cell for
-each area of interest and
-cumulative.](%22graphics/freq_species_19_20_21_cum.png%22)
+30 m by 30 m grid cells. The government of Alberta conducts annual
+Heli-GPS surveys, usually between August 15 and September 15 by flying
+helicopters at low hight and mapping the GPS locations of detected
+disturbances in therms of red- and green-attack through observers. These
+locations have a positional accuracy of =/- 30 m. In most cases only
+patches consisting of at least 3 trees are recorded. For the years under
+investigation, the minimum number of trees per patch were \_\_\_. For
+each of these locations the corresponding cell from the raster data
+containing the tree species is determined and with a box filter of 5 by
+5 the most common tree species for each point can be determined. This
+analysis is performed for each of the three areas of interest and the
+results are shown in fig !{fig:freq_species_11_19_20_21}[Frequency of
+tree species within the surrounding area of each MPB survey point for
+the years 2011, 2019, 2020, and
+2021](%22./graphics/freq_species_11_19_20_21.png%22) ![Frequency how
+often each tree species was the most dominant within one cell for each
+area of interest and
+cumulative.](%22./graphics/freq_species_19_20_21_cum.png%22)
 
 Information on accessibility is based on the road network available
 through the government of Alberta ([Government of Alberta,
