@@ -37,7 +37,7 @@ POINTBUFFER = 2
 layers = fiona.listlayers(F_GDB)
 heliGPS_layers = sorted([lyr for lyr in layers if lyr.endswith('x')])
 polygons = sorted([lyr for lyr in layers if lyr.endswith('p')])
-relevant_years = [11] #, 19, 20, 21]
+relevant_years = [12] #, 19, 20, 21]
 relevant_layers = [lyr for lyr in heliGPS_layers if any([str(yr) in lyr for yr in relevant_years])]
 
 heliGPS = None
@@ -50,11 +50,12 @@ for l in relevant_layers:
         
 heliGPS = heliGPS.to_crs(CRS)
 heliGPS = heliGPS.reset_index(drop=False)
+heliGPS.columns = heliGPS.columns.str.lower()
 heliGPS # imported data should be of geometry type point. check with: heliGPS.geom_type.head()
 
 # These data points do not have an attack stage (att_stage) assigned to them, thus they will be excluded from further anlysis.
-heliGPS.loc[heliGPS['att_stage'] == ''].explore()
-heliGPS.drop(heliGPS[heliGPS.att_stage  == ''].index, inplace=True)
+# heliGPS.loc[heliGPS['att_stage'] == ''].explore()
+heliGPS.drop(heliGPS[(heliGPS[('att_stage').casefold()].isin(['', ' ']))].index, inplace=True)
 # All remaining points are associated either to attack stage "Green" or "Red".
 
 # interactively visualize the data
@@ -68,7 +69,7 @@ heliGPS.describe(include = 'all')
 print(heliGPS.dmg_desc.value_counts(ascending=True))
 print(heliGPS.survyear.value_counts(ascending=True))
 print(heliGPS.att_stage.value_counts(ascending=True))
-print(heliGPS.zone.value_counts(ascending=True))
+# print(heliGPS.zone.value_counts(ascending=True))
 print(heliGPS.loc[heliGPS['att_stage'] == 'Green'].survyear.value_counts(ascending=True))
 
 
@@ -88,7 +89,7 @@ fig.suptitle('Spacial Distribution of Red and Green Attack Trees', fontsize=16)
 # %%
 # Extract species of trees for points in area of interest
 # add a column for the area of interest; defaults to 0 --> not in AoI
-heliGPS['AoI'] = np.zeros(max(heliGPS.count()), dtype=int)
+heliGPS['aoi'] = np.zeros(max(heliGPS.count()), dtype=int)
 heliGPS['species'] = np.zeros(max(heliGPS.count()))
 
 # read tree species names
@@ -105,7 +106,7 @@ for i in [1, 2, 3]:
     points_within = heliGPS.overlay(boundsGdf, how='intersection') # Keep points within raster bounds -  https://geopandas.org/en/stable/docs/user_guide/set_operations.html
     points_within.set_index('index', inplace=True)
 
-    heliGPS.loc[points_within.index.astype('uint64'), 'AoI'] = i # set AoI identifier
+    heliGPS.loc[points_within.index.astype('uint64'), 'aoi'] = i # set AoI identifier
     # points_within = points_within.to_crs(CRS)
     points_within['geometry'] = points_within.geometry.buffer(distance=60, resolution=1, cap_style = 3) # Do some buffering
     zs_species = zonal_stats(points_within, F_SPECIES + str(i) + '.tif', categorical=True, 
@@ -140,7 +141,7 @@ for i in [1, 2, 3]:
 
 # %%
 # create pandas df just with species for selected points
-df_species= pd.DataFrame(heliGPS[heliGPS['AoI']!=0]['species'].to_list())
+df_species= pd.DataFrame(heliGPS[heliGPS['aoi']!=0]['species'].to_list())
 df_species = df_species.reindex(sorted(df_species.columns), axis=1)
 # df_species['sum'] = df_species.sum(axis=1)
 df_species.describe()
@@ -162,7 +163,7 @@ for l in df_species.columns.to_list():
 rel_tree_species = {}
 species_aoi = {}
 for i in range(3):
-    species_aoi[i] = pd.DataFrame(heliGPS[heliGPS['AoI']==i+1]['species'].to_list())
+    species_aoi[i] = pd.DataFrame(heliGPS[heliGPS['aoi']==i+1]['species'].to_list())
     rel_tree_species[i] = species_aoi[i]/sum(species_aoi[i].count())
     
     # ax[i].bar(species_aoi[i].columns, species_aoi[i].count())#/sum(df_species.count()))    
