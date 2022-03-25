@@ -23,7 +23,7 @@ The government of Alberta conducts annual Heli-GPS surveys, usually between Augu
 ```{r fig:freq_species_19_20_21_cum, echo=FALSE, fig.align = 'center', out.width = "50%", fig.cap = 'Frequency how often each tree species was the most dominant within one cell for each area of interest and cumulative.'}
 knitr::include_graphics("./graphics/freq_species_19_20_21_cum.png")
 ```
-```{r fig:freq_species_11_19_20_21, fig.align = 'center', out.width = "100%", fig.cap='Frequency of tree species within the surrounding area of each MPB survey point for the years 2011, 2019, 2020, and 2021'}
+```{r fig:freq_species_11_19_20_21, echo = FALSE, fig.align = 'center', out.width = "100%", fig.cap='Frequency of tree species within the surrounding area of each MPB survey point for the years 2011, 2019, 2020, and 2021'}
 knitr::include_graphics("./graphics/freq_species_11_19_20_21.png")
 ```
 
