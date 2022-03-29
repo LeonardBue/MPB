@@ -37,7 +37,7 @@ POINTBUFFER = 2
 layers = fiona.listlayers(F_GDB)
 heliGPS_layers = sorted([lyr for lyr in layers if lyr.endswith('x')])
 polygons = sorted([lyr for lyr in layers if lyr.endswith('p')])
-relevant_years = [12] #, 19, 20, 21]
+relevant_years = [19]
 relevant_layers = [lyr for lyr in heliGPS_layers if any([str(yr) in lyr for yr in relevant_years])]
 
 heliGPS = None
@@ -49,13 +49,14 @@ for l in relevant_layers:
         heliGPS = pd.concat([heliGPS, survey])
         
 heliGPS = heliGPS.to_crs(CRS)
+heliGPS.drop(heliGPS[(heliGPS[('att_stage').casefold()].isin(['', ' ']))].index, inplace=True)
 heliGPS = heliGPS.reset_index(drop=False)
 heliGPS.columns = heliGPS.columns.str.lower()
 heliGPS # imported data should be of geometry type point. check with: heliGPS.geom_type.head()
 
 # These data points do not have an attack stage (att_stage) assigned to them, thus they will be excluded from further anlysis.
 # heliGPS.loc[heliGPS['att_stage'] == ''].explore()
-heliGPS.drop(heliGPS[(heliGPS[('att_stage').casefold()].isin(['', ' ']))].index, inplace=True)
+
 # All remaining points are associated either to attack stage "Green" or "Red".
 
 # interactively visualize the data
@@ -109,33 +110,37 @@ for i in [1, 2, 3]:
     heliGPS.loc[points_within.index.astype('uint64'), 'aoi'] = i # set AoI identifier
     # points_within = points_within.to_crs(CRS)
     points_within['geometry'] = points_within.geometry.buffer(distance=60, resolution=1, cap_style = 3) # Do some buffering
-    zs_species = zonal_stats(points_within, F_SPECIES + str(i) + '.tif', categorical=True, 
-                                all_touched=True, category_map = cmap_species)
-        # https://pythonhosted.org/rasterstats/_modules/rasterstats/main.html#gen_zonal_stats
-    # print(zs_species)
-    heliGPS.loc[points_within.index.astype('uint64'), 'species'] = zs_species # set AoI identifier
-    points_within.to_file(F_MPB_BUFFERED + str(i) + '.shp')
+    try:
+        zs_species = zonal_stats(points_within, F_SPECIES + str(i) + '.tif', categorical=True, 
+                                    all_touched=True, category_map = cmap_species)
+            # https://pythonhosted.org/rasterstats/_modules/rasterstats/main.html#gen_zonal_stats
+        # print(zs_species)
+        heliGPS.loc[points_within.index.astype('uint64'), 'species'] = zs_species # set AoI identifier
+        points_within.to_file(F_MPB_BUFFERED + str(i) + '.shp')
+    except Exception as e: 
+        print(e)
 
-heliGPS.to_file(F_MPB_BUFFERED + '.shp')
+# heliGPS.to_file(F_MPB_BUFFERED + '.shp')
 # %%
 # # visualize tree species data with heliGPS points and corresponding buffers
-for i in [1, 2, 3]:
+for i in [3]:
     fig, ax = plt.subplots(figsize=(10, 10))
-    species_array = rxr.open_rasterio(F_SPECIES + str(i) + '.tif')
-    species_array = species_array.rio.reproject(CRS)
-    species_array.plot(cmap = 'cividis')
-    # boundsGdf.to_crs('EPSG:4269')
+    species_array = rxr.open_rasterio(F_SPECIES + str(i) + '.tif', masked=True).squeeze()
+    species_array = species_array.rio.reproject('EPSG:4269')
+    species_array.plot(cmap = 'cividis', alpha=1)
+    # boundsGdf.to_crs('EPSG:4269', inplace+True)
     # boundsGdf.plot(ax=ax, alpha=0)
     # with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
     #     # rasterio.plot.show(species.read(1), ax=ax, cmap = 'cividis')
     #     ax.imshow(species.read(1), cmap = 'cividis', interpolation ='nearest', extent=ax.get_window_extent)
     
     # heliGPS.plot(ax=ax, marker='o', markersize=2, color='red')
-    points_within.to_crs(CRS)
+    points_within.to_crs('EPSG:4269', inplace=True)
     points_within.plot(ax=ax, color='red', alpha=0.5)
-    # ax.set_xlim([438141-500, 438141+500])
-    # ax.set_ylim([5814418-500, 5814418+500])
+    ax.set_xlim([-116, -115.9])
+    ax.set_ylim([52.72, 52.78])
     # ax.set_axis_off()
+    plt.savefig()
     # plt.show()
 
 
@@ -164,8 +169,8 @@ rel_tree_species = {}
 species_aoi = {}
 for i in range(3):
     species_aoi[i] = pd.DataFrame(heliGPS[heliGPS['aoi']==i+1]['species'].to_list())
-    rel_tree_species[i] = species_aoi[i]/sum(species_aoi[i].count())
-    
+    species_aoi[i] = species_aoi[i].reindex(sorted(species_aoi[i].columns), axis=1)
+    rel_tree_species[i] = species_aoi[i]/(25*len(species_aoi[i]))   
     # ax[i].bar(species_aoi[i].columns, species_aoi[i].count())#/sum(df_species.count()))    
 # rel_tree_species = np.sum(rel_tree_species, axis=0)
 
@@ -178,13 +183,12 @@ bar_position = {}
 fig, axes = plt.subplots(2,1, figsize=(10,10))
 for i in range(len(species_aoi.keys())):
     bar_position[i] = np.arange(len(species_aoi[i].columns)) + i *bar_width
-    axes[0].bar(bar_position[i], species_aoi[i].count(), 
-                width=bar_width, color=color_map.colors[40*i], label=f'Area of Interest {i}')
-    axes[0].set_ylabel('Absolute number of pixels for most dominant tree species')
+    axes[0].bar(bar_position[i], species_aoi[i].count(), width=bar_width, 
+                color=color_map.colors[int(i*255/(len(species_aoi.keys())-1))], 
+                label=f'Area of Interest {i+1}')
+    axes[0].set_ylabel('Absolute number of pixels')
     axes[1].bar(bar_position[i], rel_tree_species[i].sum(), 
-                width=bar_width, color=color_map.colors[40*i], label=f'Area of Interest {i}')
-    axes[1].set_ylabel('Relative number of pixels for most dominant tree species')
-
+                width=bar_width, color=color_map.colors[int(i*255/(len(species_aoi.keys())-1))], label=f'Area of Interest {i+1}')
 
 # style
 for ax in axes.flat:
@@ -194,9 +198,16 @@ for ax in axes.flat:
     ax.legend()
     ax.label_outer()
     ax.grid(axis='y')
+axes[1].set_ylabel('Relative number of pixels')
+# axes[1].set_ylim([0,1])
 plt.xticks()
-fig.suptitle('Most Dominant Tree Species in areas of interest in 2019')
-plt.savefig('./graphics/freq_species_19_20_21_cum.svg')
+fig.suptitle('Most Dominant Tree Species in areas of interest in 2011', fontsize=14)
+plt.tight_layout()
+
+graphics_file = './graphics/freq_species_11'
+# plt.savefig(graphics_file + '.pdf')
+# plt.savefig(graphics_file + '.png')
+
 
 #TODO titles, and add second line relative to beetle infestation, separate for cumulative
 #TODO repeat for 2011, check if issues for earlier years
