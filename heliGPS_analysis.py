@@ -21,9 +21,11 @@ F_SPECIES = './Data/Species_classification_2019/Species_classification_2019_aoi'
 F_AOI = './Data/Areas_of_Interest/AoI'
 F_GRAVEL_ROADS = './Data/Road_Network/_gravelRoads.shp'
 F_PAVED_ROADS = './Data/Road_Network/_pavedRoads.shp'
+F_ROADS = './Data/Road_Network/bufferedRoads.shp'
 F_BUFFER = './Data/MPB_buffer/heliGPS_buffer.shp'
 F_MPB_BUFFERED = './Data/MPB_buffer/heliGPS_species'
 F_CMAP_SPECIES = './Data/Species_classification_2019/updated_species_list_alberta.csv'
+
 
 CRS = 'EPSG:3400'
 
@@ -218,6 +220,8 @@ graphics_file = './graphics/freq_species_11'
 
 #TODO titles, and add second line relative to beetle infestation, separate for cumulative
 #TODO repeat for 2011, check if issues for earlier years
+
+
 # %%
 # first order statistics of species
 bands={}
@@ -230,4 +234,45 @@ df = pd.DataFrame(bands)
 for i in range(len(bands.keys())):
     print(df['aoi'+str(i+1)].value_counts()/len(bands['aoi1']))
     print('std', np.std(df['aoi'+str(i+1)]))
+
+
 # %%
+# load road network 
+
+paved_rds = gpd.read_file(F_PAVED_ROADS)
+paved_rds['type'] = 'paved'
+paved_rds.to_crs(CRS, inplace = True)
+gravel_rds = gpd.read_file(F_GRAVEL_ROADS)
+gravel_rds['type'] = 'gravel'
+gravel_rds.to_crs(CRS, inplace = True)
+# %%
+# buffer roads to flyable range
+try:
+    roads = pd.concat([paved_rds, gravel_rds])
+except Exception as e: 
+    print(e)
+    roads = paved_rds
+roads['aoi'] = np.zeros(max(roads.count()), dtype=int)
+roads = roads.reset_index(drop=False)
+
+for i in [1, 2, 3]:
+    with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
+        bounds = species.bounds # get bounding box raster
+        boundsGdf = gpd.GeoDataFrame({"geometry":[box(*bounds)]}, crs=species.crs) # to GeoDataFrame
+
+    rds_within = roads.to_crs(species.crs)
+    rds_within = roads.overlay(boundsGdf, how='intersection') # Keep roads within raster bounds
+    rds_within.set_index('index', inplace=True)
+
+    roads.loc[rds_within.index.astype('uint64'), 'aoi'] = i # set AoI identifier
+    # rds_within = rds_within.to_crs(CRS)
+
+roads.drop(roads[(roads['aoi'].isin([0]))].index, inplace=True)
+roads['geometry'] = roads.geometry.buffer(distance=250, cap_style = 1) # Do some buffering
+roads.to_file(F_ROADS + '.shp')
+# %%
+# calculate LPP percentage for every gps point
+# get all ponits with percentage above threshold and within buffered roads
+# for every area rank the resulting points by number of trees
+# group by year 
+# define nuymber of flight areas and flight ares themselves
