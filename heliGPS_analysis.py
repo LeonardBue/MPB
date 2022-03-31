@@ -1,19 +1,17 @@
 # %% 
-## MPB heli-GPS Analysis
+# MPB heli-GPS Analysis
 
-import affine
 import fiona
 import geopandas as gpd
-import georasters as gr
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import rasterio
-import re
 import rioxarray as rxr
-from rasterio.plot import show
 from osgeo import gdal
 from rasterstats import zonal_stats
+from rasterio.plot import show
+from scipy import stats
 from shapely.geometry import box, Point
 from sympy import rotations
 
@@ -28,8 +26,6 @@ F_MPB_BUFFERED = './Data/MPB_buffer/heliGPS_species'
 F_CMAP_SPECIES = './Data/Species_classification_2019/updated_species_list_alberta.csv'
 
 CRS = 'EPSG:3400'
-
-POINTBUFFER = 2
 
 # %% 
 # load heli-GPS data
@@ -98,7 +94,7 @@ df_names = pd.read_csv(F_CMAP_SPECIES)
 cmap_species = dict(zip(df_names['Value Code'], df_names['NFI Code']))
 
 # iterate through AoI number
-for i in [1, 2, 3]:
+for i in [1]:#, 2, 3]:
     with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
         bounds = species.bounds # get bounding box raster
         boundsGdf = gpd.GeoDataFrame({"geometry":[box(*bounds).buffer(-60)]}, crs=species.crs) # to GeoDataFrame
@@ -123,25 +119,36 @@ for i in [1, 2, 3]:
 # heliGPS.to_file(F_MPB_BUFFERED + '.shp')
 # %%
 # # visualize tree species data with heliGPS points and corresponding buffers
-for i in [3]:
+df_names = pd.read_csv(F_CMAP_SPECIES)
+cmap_labels = dict(zip(df_names['Value Code'], df_names['Common Species Name']))
+
+for i in [1]:
     fig, ax = plt.subplots(figsize=(10, 10))
     species_array = rxr.open_rasterio(F_SPECIES + str(i) + '.tif', masked=True).squeeze()
     species_array = species_array.rio.reproject('EPSG:4269')
-    species_array.plot(cmap = 'cividis', alpha=1)
+    species_array.plot(cmap = 'cividis', alpha=1, 
+                        cbar_kwargs={'ticks': list(cmap_labels.keys()), 'spacing': 'proportional', 
+                        'label': 'Species Classification 2019 in Alberta', 'shrink': 0.6})
     # boundsGdf.to_crs('EPSG:4269', inplace+True)
     # boundsGdf.plot(ax=ax, alpha=0)
     # with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
     #     # rasterio.plot.show(species.read(1), ax=ax, cmap = 'cividis')
     #     ax.imshow(species.read(1), cmap = 'cividis', interpolation ='nearest', extent=ax.get_window_extent)
     
-    # heliGPS.plot(ax=ax, marker='o', markersize=2, color='red')
+    heliGPS.to_crs('EPSG:4269', inplace=True)
+    # heliGPS.plot(ax=ax, marker='o', markersize=2, color='k')
     points_within.to_crs('EPSG:4269', inplace=True)
     points_within.plot(ax=ax, color='red', alpha=0.5)
-    ax.set_xlim([-116, -115.9])
-    ax.set_ylim([52.72, 52.78])
+    ax.set_xlim([-118.66, -118.6])
+    ax.set_ylim([54.25, 54.28])
+    ax.set_title('Buffered GPS Locations and Species Raster Data', fontsize=14)
+
     # ax.set_axis_off()
-    plt.savefig()
-    # plt.show()
+    # fig.suptitle('Buffered GPS Locations and Species Raster Data', fontsize=14)
+    plt.tight_layout()    
+    graphics_file = './graphics/bufferedPointsExample'
+    # plt.savefig(graphics_file + '.pdf')
+    # plt.savefig(graphics_file + '.png')
 
 
 # %%
@@ -211,4 +218,16 @@ graphics_file = './graphics/freq_species_11'
 
 #TODO titles, and add second line relative to beetle infestation, separate for cumulative
 #TODO repeat for 2011, check if issues for earlier years
+# %%
+# first order statistics of species
+bands={}
+for i in [1, 2, 3]:
+    with rasterio.open(F_SPECIES + str(i) + '.tif') as sp:
+        bands['aoi'+str(i)] = sp.read(1)[0:1665, 0:1665].reshape((1, -1)).squeeze()
+        print(bands['aoi'+str(i)].shape)
+df = pd.DataFrame(bands)
+
+for i in range(len(bands.keys())):
+    print(df['aoi'+str(i+1)].value_counts()/len(bands['aoi1']))
+    print('std', np.std(df['aoi'+str(i+1)]))
 # %%
