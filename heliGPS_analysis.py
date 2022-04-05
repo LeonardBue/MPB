@@ -19,9 +19,10 @@ from sympy import rotations
 F_GDB = './Data/MPB_AERIAL_SURVEY.gdb'
 F_SPECIES = './Data/Species_classification_2019/Species_classification_2019_aoi'
 F_AOI = './Data/Areas_of_Interest/AoI'
+F_FLIGHT_AREA = './Data/Areas_of_Interest/FA_250.shp'
 F_GRAVEL_ROADS = './Data/Road_Network/_gravelRoads.shp'
 F_PAVED_ROADS = './Data/Road_Network/_pavedRoads.shp'
-F_ROADS = './Data/Road_Network/bufferedRoads.shp'
+F_ROADS = './Data/Road_Network/bufferedRoads_250.shp'
 F_BUFFER = './Data/MPB_buffer/heliGPS_buffer.shp'
 F_MPB_BUFFERED = './Data/MPB_buffer/heliGPS_species'
 F_CMAP_SPECIES = './Data/Species_classification_2019/updated_species_list_alberta.csv'
@@ -35,7 +36,7 @@ CRS = 'EPSG:3400'
 layers = fiona.listlayers(F_GDB)
 heliGPS_layers = sorted([lyr for lyr in layers if lyr.endswith('x')])
 polygons = sorted([lyr for lyr in layers if lyr.endswith('p')])
-relevant_years = [19]
+relevant_years = [11, 19, 20, 21]
 relevant_layers = [lyr for lyr in heliGPS_layers if any([str(yr) in lyr for yr in relevant_years])]
 
 heliGPS = None
@@ -48,7 +49,10 @@ for l in relevant_layers:
         
 heliGPS = heliGPS.to_crs(CRS)
 heliGPS.drop(heliGPS[(heliGPS[('att_stage').casefold()].isin(['', ' ']))].index, inplace=True)
-heliGPS = heliGPS.reset_index(drop=False)
+heliGPS.drop(heliGPS[(heliGPS[('dmg_desc').casefold()] != 'Mountain pine beetle')].index, inplace=True)
+
+heliGPS = heliGPS.reset_index(drop=True)
+heliGPS['id'] = heliGPS.index
 heliGPS.columns = heliGPS.columns.str.lower()
 heliGPS # imported data should be of geometry type point. check with: heliGPS.geom_type.head()
 
@@ -96,14 +100,14 @@ df_names = pd.read_csv(F_CMAP_SPECIES)
 cmap_species = dict(zip(df_names['Value Code'], df_names['NFI Code']))
 
 # iterate through AoI number
-for i in [1]:#, 2, 3]:
+for i in [1, 2, 3]:
     with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
         bounds = species.bounds # get bounding box raster
         boundsGdf = gpd.GeoDataFrame({"geometry":[box(*bounds).buffer(-60)]}, crs=species.crs) # to GeoDataFrame
 
     points_within = heliGPS.to_crs(species.crs)
     points_within = heliGPS.overlay(boundsGdf, how='intersection') # Keep points within raster bounds -  https://geopandas.org/en/stable/docs/user_guide/set_operations.html
-    points_within.set_index('index', inplace=True)
+    points_within.set_index('id', inplace=True)
 
     heliGPS.loc[points_within.index.astype('uint64'), 'aoi'] = i # set AoI identifier
     # points_within = points_within.to_crs(CRS)
@@ -218,10 +222,6 @@ graphics_file = './graphics/freq_species_11'
 # plt.savefig(graphics_file + '.png')
 
 
-#TODO titles, and add second line relative to beetle infestation, separate for cumulative
-#TODO repeat for 2011, check if issues for earlier years
-
-
 # %%
 # first order statistics of species
 bands={}
@@ -246,33 +246,88 @@ gravel_rds = gpd.read_file(F_GRAVEL_ROADS)
 gravel_rds['type'] = 'gravel'
 gravel_rds.to_crs(CRS, inplace = True)
 # %%
-# buffer roads to flyable range
+# get roads within area of interest
 try:
     roads = pd.concat([paved_rds, gravel_rds])
 except Exception as e: 
     print(e)
     roads = paved_rds
 roads['aoi'] = np.zeros(max(roads.count()), dtype=int)
-roads = roads.reset_index(drop=False)
+roads = roads.reset_index(drop=True)
+roads['id'] = roads.index
 
 for i in [1, 2, 3]:
-    with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
-        bounds = species.bounds # get bounding box raster
-        boundsGdf = gpd.GeoDataFrame({"geometry":[box(*bounds)]}, crs=species.crs) # to GeoDataFrame
+    aoi = gpd.read_file(F_AOI + str(i) + '.shp')
+    aoi.to_crs(CRS, inplace = True)
+    rds_within = roads.clip(aoi)
 
-    rds_within = roads.to_crs(species.crs)
-    rds_within = roads.overlay(boundsGdf, how='intersection') # Keep roads within raster bounds
-    rds_within.set_index('index', inplace=True)
-
-    roads.loc[rds_within.index.astype('uint64'), 'aoi'] = i # set AoI identifier
-    # rds_within = rds_within.to_crs(CRS)
+    roads.loc[rds_within['id'].astype('uint64'), 'aoi'] = i # set AoI identifier
 
 roads.drop(roads[(roads['aoi'].isin([0]))].index, inplace=True)
-roads['geometry'] = roads.geometry.buffer(distance=250, cap_style = 1) # Do some buffering
-roads.to_file(F_ROADS + '.shp')
+# roads['geometry'] = roads.geometry.buffer(distance=250, cap_style = 1) # Do some buffering
+roads.plot()
+
 # %%
-# calculate LPP percentage for every gps point
-# get all ponits with percentage above threshold and within buffered roads
-# for every area rank the resulting points by number of trees
-# group by year 
-# define nuymber of flight areas and flight ares themselves
+# roads that contain heliGPS points, buffered to range of flight
+roads.to_crs(CRS, inplace = True)
+buffered_points = heliGPS.to_crs(CRS, inplace = True)
+buffered_points = heliGPS.geometry.buffer(distance=250, cap_style = 1)
+
+#     roads.loc[rds_within['id'].astype('uint64'), 'aoi'] = i # set AoI identifier
+flight_area = roads.clip(buffered_points, True)
+flight_area.drop(flight_area[flight_area.geom_type == 'MultiLineString'].index, inplace=True)
+flight_area['geometry'] = flight_area.geometry.buffer(distance=250, cap_style = 1)
+
+_combined_area = flight_area.geometry.unary_union
+flight_area = gpd.GeoDataFrame([polygon for polygon in _combined_area.geoms])
+flight_area.rename(columns={0: 'geometry'}, inplace = True)
+flight_area.set_geometry('geometry', inplace=True)
+flight_area.set_crs(CRS, inplace = True)
+flight_area.to_file(F_ROADS)
+# %%
+# calculate LPP percentage for every gps point from species
+heliGPS['lpp'] = 0.
+heliGPS.loc[heliGPS.species != 0.0, 'lpp'] = heliGPS[heliGPS.species != 0.0].species.apply(lambda x: x.get('PINU.CON')).div(25)
+heliGPS['lpp'] = heliGPS['lpp'].fillna(0.)
+
+# associate points with flight areas
+flight_area['aoi'] = 0
+flight_area['lpp'] = 0
+flight_area['red']= 0
+flight_area['grey']= 0
+flight_area['fallen']= 0
+flight_area['num_trees'] = 0.
+flight_area['survyear'] = 'None'
+flight_area['id'] = flight_area.index
+
+for i in [1, 2, 3]:    
+    for p in flight_area.index:
+        red, grey, fallen = 0., 0., 0.
+        yrs = {2011: 0., 2019: 0., 2020: 0., 2021: 0.}
+        _polygon = gpd.GeoDataFrame(index=[p], geometry=[flight_area.geometry[p]], crs=CRS)
+        _pts = gpd.overlay(_polygon, heliGPS[heliGPS.aoi == i], how='intersection', keep_geom_type=False)
+        if len(_pts) > 0:
+            for idx in _pts.index:
+                _pt = _pts.iloc[[idx]]
+                if _pt.survyear.item() == 2011:
+                    fallen += _pt.num_trees.item()
+                elif _pt.survyear.item() == 2019:
+                    grey += _pt.num_trees.item()
+                elif (_pt.survyear.item() == 2020 or _pt.survyear.item() == 2021):
+                    red += _pt.num_trees.item()
+                yrs[_pt.survyear.item()] += 1
+            flight_area.at[p, 'red'] = red
+            flight_area.at[p, 'grey'] = grey
+            flight_area.at[p, 'fallen'] = fallen
+            flight_area.at[p, 'lpp'] = _pts.lpp.mean()
+            flight_area.at[p, 'num_trees'] = _pts.num_trees.sum()
+            flight_area.at[p, 'aoi'] = _pts.aoi.mode()
+            flight_area.at[p, 'survyear'] = yrs
+flight_area.num_trees = flight_area[['red', 'grey', 'fallen']].sum(axis=1)
+flight_area.drop(flight_area[flight_area.aoi == 0].index, inplace=True) 
+# flight_area.drop(flight_area[flight_area[['red', 'grey', 'fallen']].sum(axis=1)<=3].index, inplace=True)
+flight_area.drop(flight_area[flight_area.num_trees < 9].index, inplace=True) # only top 50% (9) or top 25% (18)
+# flight_area.drop(flight_area[flight_area.lpp != 0.].index, inplace=True)
+flight_area.to_file(F_FLIGHT_AREA)
+
+# %%
