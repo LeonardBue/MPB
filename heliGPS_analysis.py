@@ -36,7 +36,7 @@ CRS = 'EPSG:3400'
 layers = fiona.listlayers(F_GDB)
 heliGPS_layers = sorted([lyr for lyr in layers if lyr.endswith('x')])
 polygons = sorted([lyr for lyr in layers if lyr.endswith('p')])
-relevant_years = [11, 19, 20, 21]
+relevant_years = [11]
 relevant_layers = [lyr for lyr in heliGPS_layers if any([str(yr) in lyr for yr in relevant_years])]
 
 heliGPS = None
@@ -211,7 +211,12 @@ for ax in axes.flat:
     ax.legend()
     ax.label_outer()
     ax.grid(axis='y')
+    # leg = ax.get_legend()
+    # leg.legendHandles[2].set_color(color_map.colors[int(i*255/(len(species_aoi.keys())-1))])
 axes[1].set_ylabel('Relative number of pixels')
+
+
+
 # axes[1].set_ylim([0,1])
 plt.xticks()
 fig.suptitle('Most Dominant Tree Species in areas of interest in 2011', fontsize=14)
