@@ -13,13 +13,13 @@ from rasterstats import zonal_stats
 from rasterio.plot import show
 from scipy import stats
 from shapely.geometry import box, Point
-from sympy import rotations
+from sympy import are_similar, rotations
 
 
 F_GDB = './Data/MPB_AERIAL_SURVEY.gdb'
 F_SPECIES = './Data/Species_classification_2019/Species_classification_2019_aoi'
 F_AOI = './Data/Areas_of_Interest/AoI'
-F_FLIGHT_AREA = './Data/Areas_of_Interest/FA_250.shp'
+F_FLIGHT_AREA = './Data/Areas_of_Interest/FA_250_reltop50.shp'
 F_GRAVEL_ROADS = './Data/Road_Network/_gravelRoads.shp'
 F_PAVED_ROADS = './Data/Road_Network/_pavedRoads.shp'
 F_ROADS = './Data/Road_Network/bufferedRoads_250.shp'
@@ -36,7 +36,7 @@ CRS = 'EPSG:3400'
 layers = fiona.listlayers(F_GDB)
 heliGPS_layers = sorted([lyr for lyr in layers if lyr.endswith('x')])
 polygons = sorted([lyr for lyr in layers if lyr.endswith('p')])
-relevant_years = [11]
+relevant_years = [11, 19, 20, 21]
 relevant_layers = [lyr for lyr in heliGPS_layers if any([str(yr) in lyr for yr in relevant_years])]
 
 heliGPS = None
@@ -278,7 +278,7 @@ roads.to_crs(CRS, inplace = True)
 buffered_points = heliGPS.to_crs(CRS, inplace = True)
 buffered_points = heliGPS.geometry.buffer(distance=250, cap_style = 1)
 
-#     roads.loc[rds_within['id'].astype('uint64'), 'aoi'] = i # set AoI identifier
+# roads.loc[rds_within['id'].astype('uint64'), 'aoi'] = i # set AoI identifier
 flight_area = roads.clip(buffered_points, True)
 flight_area.drop(flight_area[flight_area.geom_type == 'MultiLineString'].index, inplace=True)
 flight_area['geometry'] = flight_area.geometry.buffer(distance=250, cap_style = 1)
@@ -288,7 +288,7 @@ flight_area = gpd.GeoDataFrame([polygon for polygon in _combined_area.geoms])
 flight_area.rename(columns={0: 'geometry'}, inplace = True)
 flight_area.set_geometry('geometry', inplace=True)
 flight_area.set_crs(CRS, inplace = True)
-flight_area.to_file(F_ROADS)
+# flight_area.to_file(F_ROADS)
 # %%
 # calculate LPP percentage for every gps point from species
 heliGPS['lpp'] = 0.
@@ -331,8 +331,23 @@ for i in [1, 2, 3]:
 flight_area.num_trees = flight_area[['red', 'grey', 'fallen']].sum(axis=1)
 flight_area.drop(flight_area[flight_area.aoi == 0].index, inplace=True) 
 # flight_area.drop(flight_area[flight_area[['red', 'grey', 'fallen']].sum(axis=1)<=3].index, inplace=True)
-flight_area.drop(flight_area[flight_area.num_trees < 9].index, inplace=True) # only top 50% (9) or top 25% (18)
+# flight_area.drop(flight_area[flight_area.num_trees < 9].index, inplace=True) # only top 50% (9) or top 25% (18)
 # flight_area.drop(flight_area[flight_area.lpp != 0.].index, inplace=True)
-flight_area.to_file(F_FLIGHT_AREA)
+# flight_area.to_file(F_FLIGHT_AREA)
+
+# %%
+# Comparison of the different flight areas
+_fa = pd.DataFrame(flight_area.survyear.to_list())
+flight_area[_fa.columns] = _fa.values
+# find threshold for upper 50 % and 25 %
+_cols = [2011, 2019, 2020, 2021]
+_cols_n = ['2011n', '2019n', '2020n', '2021n']
+_flight_area = (flight_area[_cols] - flight_area[_cols].mean())/flight_area[_cols].std()
+_flight_area['combined']=_flight_area.sum(axis=1)
+_flight_area.describe() # -6.772848e-01 corresponds to top 50 % and 3.136384e-01 to top 25 %
+
+flight_area[_cols_n] = _flight_area.drop(columns='combined') # add columns with normalized tree counts
+flight_area.rename(columns={2011: '2011', 2019: '2019', 2020: '2020', 2021: '2021'}, inplace=True) 
+(flight_area.loc[(flight_area[_cols_n].sum(axis=1) > -6.772848e-01)]).to_file(F_FLIGHT_AREA)
 
 # %%
