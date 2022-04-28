@@ -118,7 +118,7 @@ for i in [1, 2, 3]:
             # https://pythonhosted.org/rasterstats/_modules/rasterstats/main.html#gen_zonal_stats
         # print(zs_species)
         heliGPS.loc[points_within.index.astype('uint64'), 'species'] = zs_species # set AoI identifier
-        points_within.to_file(F_MPB_BUFFERED + str(i) + '.shp')
+        # points_within.to_file(F_MPB_BUFFERED + str(i) + '.shp')
     except Exception as e: 
         print(e)
 
@@ -128,7 +128,7 @@ for i in [1, 2, 3]:
 df_names = pd.read_csv(F_CMAP_SPECIES)
 cmap_labels = dict(zip(df_names['Value Code'], df_names['Common Species Name']))
 
-for i in [1]:
+for i in [1,2,3]:
     fig, ax = plt.subplots(figsize=(10, 10))
     species_array = rxr.open_rasterio(F_SPECIES + str(i) + '.tif', masked=True).squeeze()
     species_array = species_array.rio.reproject('EPSG:4269')
@@ -348,6 +348,6 @@ _flight_area.describe() # -6.772848e-01 corresponds to top 50 % and 3.136384e-01
 
 flight_area[_cols_n] = _flight_area.drop(columns='combined') # add columns with normalized tree counts
 flight_area.rename(columns={2011: '2011', 2019: '2019', 2020: '2020', 2021: '2021'}, inplace=True) 
-(flight_area.loc[(flight_area[_cols_n].sum(axis=1) > -6.772848e-01)]).to_file(F_FLIGHT_AREA)
+# (flight_area.loc[(flight_area[_cols_n].sum(axis=1) > -6.772848e-01)]).to_file(F_FLIGHT_AREA)
 
 # %%
