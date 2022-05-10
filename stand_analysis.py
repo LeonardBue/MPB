@@ -54,10 +54,10 @@ test_df = MPB_locations.iloc[:1000, :].copy()
 #     print(f'Batch begins at index {batch[0]} and ends at {batch[-1]}')
     
 #     test_df.loc[batch,'first_return'] = sample_raster(test_df.iloc[batch,:], 
-#         raster_path=F_LIDAR + 'z11/' + F_ELEV_FIRST_RETURN, value_name='first_return', 
+#         raster_path=F_LIDAR+'z11/'+F_ELEV_FIRST_RETURN, value_name='first_return', 
 #         buffer=buffer, bufferargs=bufferargs, stats=feature_stats)
 #     test_df.loc[batch,'first_return'] = sample_raster(test_df.iloc[batch,:], 
-#         raster_path=F_LIDAR + 'z12/' + F_ELEV_FIRST_RETURN, value_name='first_return', 
+#         raster_path=F_LIDAR+'z12/'+F_ELEV_FIRST_RETURN, value_name='first_return', 
 #         buffer=buffer, bufferargs=bufferargs, stats=feature_stats)
 # toc=time.process_time()
 # print(f'Elapsed time with single core processing: {toc-tic} seconds.')
@@ -70,26 +70,26 @@ with Pool(processes=n_cpus) as pool:
         input_data.append(test_df.iloc[batch,:])
         print(f'Batch begins at index {batch[0]} and ends at {batch[-1]}')
         
-    # elev_first_return = pool.map_async(partial(sample_raster, raster_path=F_LIDAR + 'z11/' + F_ELEV_FIRST_RETURN,
-    #             buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
-    # elev_first_return = pool.map_async(partial(sample_raster, raster_path=F_LIDAR + 'z12/' + F_ELEV_FIRST_RETURN,
-    #             buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
-    # test_df.loc[:,'elev_first_return'] = np.hstack(np.asarray(elev_first_return, dtype=object))
+    elev_first_return = pool.map_async(partial(sample_raster, raster_path=F_LIDAR+'z11/'+F_ELEV_FIRST_RETURN,
+                value_name='elev_first_return', buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
+    elev_first_return = pool.map_async(partial(sample_raster, raster_path=F_LIDAR+'z12/'+F_ELEV_FIRST_RETURN, 
+                value_name='elev_first_return', buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
+    test_df.loc[:,'elev_first_return'] = np.hstack(np.asarray(elev_first_return, dtype=object))
 
-    # elev_p99 = pool.map_async(partial(sample_raster, raster_path=F_LIDAR + 'z11/' + F_ELEV_P99,
-    #             buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
-    # elev_p99 = pool.map_async(partial(sample_raster, raster_path=F_LIDAR + 'z12/' + F_ELEV_P99,
-    #             buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
-    # test_df.loc[:,'elev_p99'] = np.hstack(np.asarray(elev_p99, dtype=object))
-
-    elev_cv = pool.map_async(partial(sample_raster, raster_path=F_LIDAR + 'z11/' + F_ELEV_CV,
-                buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
-    elev_cv = pool.map_async(partial(sample_raster, raster_path=F_LIDAR + 'z12/' + F_ELEV_CV,
-                buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
+    elev_p99 = pool.map_async(partial(sample_raster, raster_path=F_LIDAR+'z11/'+F_ELEV_P99, 
+                value_name='elev_p99', buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
+    elev_p99 = pool.map_async(partial(sample_raster, raster_path=F_LIDAR+'z12/'+F_ELEV_P99, 
+                value_name='elev_p99', buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
+    test_df.loc[:,'elev_p99'] = np.hstack(np.asarray(elev_p99, dtype=object))
+    
+    elev_cv = pool.map_async(partial(sample_raster, raster_path=F_LIDAR+'z11/'+F_ELEV_CV, 
+                value_name='elev_cv', buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
+    elev_cv = pool.map_async(partial(sample_raster, raster_path=F_LIDAR+'z12/'+F_ELEV_CV, 
+                value_name='elev_cv', buffer=buffer, bufferargs=bufferargs, stats=feature_stats), input_data).get()
     test_df.loc[:,'elev_cv'] = np.hstack(np.asarray(elev_cv, dtype=object))
 
-    cluster_clean = pool.map_async(partial(sample_raster, raster_path=F_CLUSTER_CLEAN,
-                buffer=buffer, bufferargs=bufferargs, stats = 'mean'), input_data).get()
+    cluster_clean = pool.map_async(partial(sample_raster, raster_path=F_CLUSTER_CLEAN, 
+                value_name='cluster_clean', buffer=buffer, bufferargs=bufferargs, stats='mean'), input_data).get()
     test_df.loc[:,'cluster_clean'] = np.hstack(np.asarray(cluster_clean, dtype=object))
     
 pool.close()

@@ -11,7 +11,7 @@ def buffer_points(gdf, distance, **kwargs):
     bp_geometry = gdf.geometry.buffer(distance, **kwargs)
     return bp_geometry
 
-def sample_raster(gdf, raster_path, buffer = False, bufferargs = {}, **kwargs):
+def sample_raster(gdf, raster_path, value_name ='value_name', buffer = False, bufferargs = {}, **kwargs):
     """
     Returns raster data given for point coordinates.
     Instead of points, polygons can be used as well.
@@ -35,18 +35,18 @@ def sample_raster(gdf, raster_path, buffer = False, bufferargs = {}, **kwargs):
         df_values.set_index(points.index, inplace = True)
         # if kwargs.get('categorical') == True:
         #     if len(values[0].keys()) == 1:
-        #         gdf.loc[points[df_values.notnull().any(axis=1)].index.astype('uint64'), 'value_name'] = df_values[df_values.notnull().all(axis=1)].keys
+        #         gdf.loc[points[df_values.notnull().any(axis=1)].index.astype('uint64'), value_name] = df_values[df_values.notnull().all(axis=1)].keys
         #     else:
-        #         gdf.loc[points[df_values.notnull().any(axis=1)].index.astype('uint64'), 'value_name'] = df_values[df_values.notnull().any(axis=1)].to_dict(orient='records')
+        #         gdf.loc[points[df_values.notnull().any(axis=1)].index.astype('uint64'), value_name] = df_values[df_values.notnull().any(axis=1)].to_dict(orient='records')
                 
         # else:
         if len(values[0].keys()) == 1:
-            gdf.loc[points[df_values.notnull().any(axis=1)].index.astype('uint64'), 'value_name'] = df_values[df_values.notnull().any(axis=1)].values
+            gdf.loc[points[df_values.notnull().any(axis=1)].index.astype('uint64'), value_name] = df_values[df_values.notnull().any(axis=1)].values
             
         else:
-            gdf.loc[points[df_values.notnull().any(axis=1)].index.astype('uint64'), 'value_name'] = df_values[df_values.notnull().any(axis=1)].to_dict(orient='records') # set specified value
+            gdf.loc[points[df_values.notnull().any(axis=1)].index.astype('uint64'), value_name] = df_values[df_values.notnull().any(axis=1)].to_dict(orient='records') # set specified value
             
     except Exception as e: 
         print(e)
     
-    return gdf['value_name'].values
+    return gdf[value_name].values
