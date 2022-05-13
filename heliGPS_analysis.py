@@ -24,7 +24,7 @@ F_GRAVEL_ROADS = './Data/Road_Network/_gravelRoads.shp'
 F_PAVED_ROADS = './Data/Road_Network/_pavedRoads.shp'
 F_ROADS = './Data/Road_Network/bufferedRoads_250.shp'
 F_BUFFER = './Data/MPB_buffer/heliGPS_buffer.shp'
-F_MPB_BUFFERED = './Data/MPB_buffer/heliGPS_species'
+F_MPB_BUFFERED = './Data/MPB_buffer/heliGPS_buffered_'
 F_CMAP_SPECIES = './Data/Species_classification_2019/updated_species_list_alberta.csv'
 
 
@@ -39,6 +39,7 @@ polygons = sorted([lyr for lyr in layers if lyr.endswith('p')])
 relevant_years = [11, 19, 20, 21]
 relevant_layers = [lyr for lyr in heliGPS_layers if any([str(yr) in lyr for yr in relevant_years])]
 
+# load relevant layers as specified and concatenate them to one gdb
 heliGPS = None
 for l in relevant_layers:
     if heliGPS is None:
@@ -47,19 +48,16 @@ for l in relevant_layers:
         survey = gpd.read_file(F_GDB, layer=l)
         heliGPS = pd.concat([heliGPS, survey])
         
+# project to desired crs and clean up gdb from data without attack stages and non-MPB damages
+# All remaining points are associated either to attack stage "Green" or "Red".
 heliGPS = heliGPS.to_crs(CRS)
 heliGPS.drop(heliGPS[(heliGPS[('att_stage').casefold()].isin(['', ' ']))].index, inplace=True)
 heliGPS.drop(heliGPS[(heliGPS[('dmg_desc').casefold()] != 'Mountain pine beetle')].index, inplace=True)
-
+# reset index to have no duplicates in index
 heliGPS = heliGPS.reset_index(drop=True)
 heliGPS['id'] = heliGPS.index
 heliGPS.columns = heliGPS.columns.str.lower()
 heliGPS # imported data should be of geometry type point. check with: heliGPS.geom_type.head()
-
-# These data points do not have an attack stage (att_stage) assigned to them, thus they will be excluded from further anlysis.
-# heliGPS.loc[heliGPS['att_stage'] == ''].explore()
-
-# All remaining points are associated either to attack stage "Green" or "Red".
 
 # interactively visualize the data
 # heliGPS.explore()
@@ -82,7 +80,7 @@ print(heliGPS.loc[heliGPS['att_stage'] == 'Green'].survyear.value_counts(ascendi
 # Distribution of affected trees, grouped by att_stage
 ax1 = heliGPS.plot.hist(column=['num_trees'], by='att_stage', figsize=(10, 8))
 
-# boxplot of the spacial distribution for red and green attack trees
+# boxplot of the spatial distribution for red and green attack trees
 fig, axes = plt.subplots(1, 2, figsize=(10, 8))
 for i, c in enumerate(['longitude', 'latitude']):
     heliGPS.boxplot(column=c, by='att_stage', ax=axes[i])
@@ -101,6 +99,7 @@ cmap_species = dict(zip(df_names['Value Code'], df_names['NFI Code']))
 
 # iterate through AoI number
 for i in [1, 2, 3]:
+    _raster_file = F_SPECIES + str(i) + '.tif'
     with rasterio.open(F_SPECIES + str(i) + '.tif') as species:
         bounds = species.bounds # get bounding box raster
         boundsGdf = gpd.GeoDataFrame({"geometry":[box(*bounds).buffer(-60)]}, crs=species.crs) # to GeoDataFrame
@@ -122,9 +121,11 @@ for i in [1, 2, 3]:
     except Exception as e: 
         print(e)
 
-# heliGPS.to_file(F_MPB_BUFFERED + '.shp')
+# for yr in relevant_years:
+#     heliGPS.loc[heliGPS.survyear == 2000+yr].to_file(f'{F_MPB_BUFFERED}{yr}.shp', )
+
 # %%
-# # visualize tree species data with heliGPS points and corresponding buffers
+# visualize tree species data with heliGPS points and corresponding buffers
 df_names = pd.read_csv(F_CMAP_SPECIES)
 cmap_labels = dict(zip(df_names['Value Code'], df_names['Common Species Name']))
 
